@@ -8,15 +8,15 @@ Don't expect this to always be up to date but you might be able to use it as som
 1. [Prerequisites](#main-prerequisites)
 2. [Tailscale Setup](#tailscale-setup)
    - [Generating an Auth Key](#generating-an-auth-key)
-3. [Network Storage Setup](#network-storage-setup)
-4. [Head Node Setup](#head-node-setup)
+3. [Head Node Setup](#head-node-setup)
    - [Munge](#munge)
    - [Slurm](#slurm)
-5. [Compute Node Setup](#compute-node-setup)
+4. [Compute Node Setup](#compute-node-setup)
    - [Paperspace](#paperspace)
    - [Lambda Labs](#lambda-labs)
    - [Runpods](#runpods)
    - [Setting up NFS](#setting-up-nfs)
+5. [Network Storage Setup](#network-storage-setup)
 
 ### Usage & Training
 1. [Using Slurm](#using-slurm)
@@ -55,9 +55,21 @@ I do the following:
 
 One thing that sucks about  any of this is that when your Auth Key becomes invalid you will have to rotate through all your nodes and set them to a new one. There may be a way to automate this or do this a better way but this is the easiest solution I fell upon.
 
-## Network Storage Setup
-I use a shared network drive, but you can also just copy your datasets over to each disk drive per compute node. There's pros and cons to each; if you need read speed and want to use
-**LMDB** it may be worthwhile. However, I'll be using **WebDataset** for my shared network drive. My drive is located on the Head node which is my local desktop. It is a **4TB NVMe M.2 SSD**. The faster the read/write capabilities of the drive the better. You'll still have to consider network bandwidth for each node though!
+
+#### Compute Node
+```
+sudo apt update
+sudo apt install nfs-common
+sudo mkdir -p /mnt/shared-slurm
+sudo mount <TAILSCALE_SHARED_DRIVE_IP>:/mnt/shared-slurm /mnt/shared-slurm
+```
+
+To set up auto-mount on reboot modify the `/etc/fstab` per node and add the following line.
+```
+<TAILSCALE_SHARED_DRIVE_IP>:/mnt/shared-slurm /mnt/shared-slurm nfs defaults 0 0
+sudo mount -a
+```
+
 
 
 ## Head Node Setup
@@ -75,6 +87,10 @@ I have my personal desktop as both a head and compute node with an **RTX A6000**
 ### Lambda Labs
 
 ### Runpods
+
+## Network Storage Setup
+I use a shared network drive, but you can also just copy your datasets over to each disk drive per compute node. There's pros and cons to each; if you need read speed and want to use
+**LMDB** it may be worthwhile. However, I'll be using **WebDataset** for my shared network drive. My drive is located on the Head node which is my local desktop. It is a **4TB NVMe M.2 SSD**. The faster the read/write capabilities of the drive the better. You'll still have to consider network bandwidth for each node though!
 
 ### Setting up NFS
 Install the NFS Server wherever you plan on hosting this drive. For my case, it will be my head node.
@@ -98,20 +114,6 @@ Then refresh and restart your `nfs-kernel-server`. If you don't have systemctl i
 ```
 sudo exportfs -ra
 sudo systemctl restart nfs-kernel-server
-```
-
-#### Compute Node
-```
-sudo apt update
-sudo apt install nfs-common
-sudo mkdir -p /mnt/shared-slurm
-sudo mount <TAILSCALE_SHARED_DRIVE_IP>:/mnt/shared-slurm /mnt/shared-slurm
-```
-
-To set up auto-mount on reboot modify the `/etc/fstab` per node and add the following line.
-```
-<TAILSCALE_SHARED_DRIVE_IP>:/mnt/shared-slurm /mnt/shared-slurm nfs defaults 0 0
-sudo mount -a
 ```
 
 
