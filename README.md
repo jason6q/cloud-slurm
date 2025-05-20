@@ -54,23 +54,6 @@ I do the following:
 
 One thing that sucks about  any of this is that when your Auth Key becomes invalid you will have to rotate through all your nodes and set them to a new one. There may be a way to automate this or do this a better way but this is the easiest solution I fell upon.
 
-
-#### Compute Node
-```
-sudo apt update
-sudo apt install nfs-common
-sudo mkdir -p /mnt/shared-slurm
-sudo mount <TAILSCALE_SHARED_DRIVE_IP>:/mnt/shared-slurm /mnt/shared-slurm
-```
-
-To set up auto-mount on reboot modify the `/etc/fstab` per node and add the following line.
-```
-<TAILSCALE_SHARED_DRIVE_IP>:/mnt/shared-slurm /mnt/shared-slurm nfs defaults 0 0
-sudo mount -a
-```
-
-
-
 ## Head Node Setup
 I have my personal desktop as both a head and compute node with an **RTX A6000**. But you can extrapolate these instructions to just an exclusive head node either locally or on the cloud. I'd recommend using a cheap non-GPU instance for the head node if that is the case.
 
@@ -114,6 +97,22 @@ Then refresh and restart your `nfs-kernel-server`. If you don't have systemctl i
 sudo exportfs -ra
 sudo systemctl restart nfs-kernel-server
 ```
+
+#### Compute Node
+```
+sudo apt update
+sudo apt install nfs-common
+sudo mkdir -p /mnt/shared-slurm
+sudo mount <TAILSCALE_SHARED_DRIVE_IP>:/mnt/shared-slurm /mnt/shared-slurm
+```
+
+To set up auto-mount on reboot modify the `/etc/fstab` per node and add the following line.
+```
+<TAILSCALE_SHARED_DRIVE_IP>:/mnt/shared-slurm /mnt/shared-slurm nfs defaults 0 0
+sudo mount -a
+```
+
+
 
 
 ## Using Slurm
