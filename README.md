@@ -15,7 +15,6 @@ Don't expect this to always be up to date but you might be able to use it as som
    - [Paperspace](#paperspace)
    - [Lambda Labs](#lambda-labs)
    - [Runpods](#runpods)
-   - [Setting up NFS](#setting-up-nfs)
 5. [Network Storage Setup](#network-storage-setup)
 
 ### Usage & Training
