@@ -1,4 +1,4 @@
-# cloud-slurm
+# cloud-slurm (WIP)
 My personal Slurm cluster to orchestrate compute nodes across different GPU providers for multi-node multi-gpu model training; effectively creating a mesh network through Tailscale. This was written more-so for myself to keep track of all the steps.
 
 Don't expect this to always be up to date but you might be able to use it as some sort of template for your own. You don't have to use the same GPU providers; so long as you can SSH into a VM instance and/or deploy a Docker container into them.
@@ -138,9 +138,24 @@ As a sanity check run `scontrol show node` to see a list of nodes in your cluste
 ## Compute Node Setup
 Most of the configuration done for our compute nodes have already been setup from the previous section. So we'll mainly need to just copy some files over. We'll have to do these steps **FOR EACH** of our compute nodes.
 
+Repeat the process for installing tailscale from the Head node in this node.
 
-To enable and launch our Slurm compute node we'll have 
+Install munge and copy the munge key that we created from our head node into these nodes. 
 ```
+sudo apt install munge
+scp <USER>@<HEAD_TAILSCALE_IP>:/etc/munge/munge.key <USER>@<COMPUTE_TAILSCALE_IP>:/etc/munge/munge.key
+sudo chmod 400 /etc/munge/munge.key
+sudo systemctl enable --now munge
+```
+
+Now copy the `slurm.conf` we created from the head node into here.
+```
+scp <USER>@<HEAD_TAILSCALE_IP>:/etc/slurm/slurm.conf <USER>@<COMPUTE_TAILSCALE_IP>:/etc/slurm/slurm.conf
+```
+
+To enable and launch our Slurm compute node we'll have to do the following again:
+```
+sudo apt install slurmd
 sudo mkdir -p /var/spool/slurmd
 sudo chown slurm: /var/spool/slurmd
 sudo systemctl enable --now slurmd
