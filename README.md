@@ -1,7 +1,9 @@
 # cloud-slurm
-My personal Slurm cluster to orchestrate compute nodes across different GPU providers for multi-node multi-gpu model training; effectively creating a mesh network through Tailscale.
+My personal Slurm cluster to orchestrate compute nodes across different GPU providers for multi-node multi-gpu model training; effectively creating a mesh network through Tailscale. This was written more-so for myself to keep track of all the steps.
 
 Don't expect this to always be up to date but you might be able to use it as some sort of template for your own. You don't have to use the same GPU providers; so long as you can SSH into a VM instance and/or deploy a Docker container into them.
+
+**TODO:** Docker Setup Variant
 
 ## Table of Contents
 ### Setup
@@ -22,7 +24,7 @@ Don't expect this to always be up to date but you might be able to use it as som
 2. [Profiling](#profiling)
 3. [Using PyTorch DDP with Slurm](#using-pytorch-ddp-with-slurm)
 4. [Training On A Toy Example](#training-on-a-toy-example)
-5. [Full Training](#full-training)
+5. [Training T2T ViT From Scratch](#training-t2t-vit-from-scratch)
 
 
 
@@ -31,8 +33,7 @@ Don't expect this to always be up to date but you might be able to use it as som
 2. [Paperspace](paperspace.com)- Cloud GPU Provider
 3. [Runpod](runpod.io) - Cloud GPU Provider
 4. [Lambda Labs](lambda.ai) - Cloud GPU Provider
-5. [NVIDIA NSight Systems](https://developer.nvidia.com/nsight-systems/get-started) - GPU Profiling
-6. [MLFlow](https://mlflow.org/) - MLOps platform to track training progress.
+5. [MLFlow](https://mlflow.org/) - MLOps platform to track training progress.
 
 ## Tailscale Setup
 Register and subscribe to a [plan](https://tailscale.com/pricing) on Tailscale. Each of our nodes need to communicate with each other through some network and the easiest way to do this is to have them all connected to a single VPN with assigned static IP addresses. (More on this later)
@@ -57,12 +58,93 @@ One thing that sucks about  any of this is that when your Auth Key becomes inval
 ## Head Node Setup
 I have my personal desktop as both a head and compute node with an **RTX A6000**. But you can extrapolate these instructions to just an exclusive head node either locally or on the cloud. I'd recommend using a cheap non-GPU instance for the head node if that is the case.
 
+```
+sudo apt update
+sudo apt install -y slurm-wlm munge
+```
+
+### Tailscale
+We'll install tailscale directly inside the node.
+```
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscaled &
+sudo tailscale up --authkey <TAILSCALE_AUTH_KEY> --hostname=<HOST_NODE_NAME>
+tailscale ip
+```
+
 ### Munge
+We'll setup munge on here too and generate our key to be copied over later to our compute nodes.
+```
+sudo create-munge-key
+sudo chown munge:munge /etc/munge/munge.key
+sudo chmod 400 /etc/munge/munge.key
+sudo systemctl enable --now munge
+```
 
 ### Slurm
+Run `lscpu` to get the following parameters: `Thread(s) per core`, `Core(s) per socket`, `Socket(s)`. Once you have these Slurm can automatically calculate the number of CPUs so you wouldn't need to specify the `CPUs` parameter in the `slurm.conf`.
+
+To capture the amount of Free Memory run `free -m` and grab a rough total of what you think would be available.
+
+Grab your tailscale ip address by running `tailscale ip`. If this is your local desktop like mines for my head node you can get away with `localhost`.
+
+Grab your GPUs via `nvidia-smi-L`, if you have multiple ones you'll have to make sure you select a range in the `slurm.conf`.
+
+
+
+To configure slurm we'll have to create a conf file: `sudo touch /etc/slurm/slurm.conf`. Edit the file and copy the following template:
+
+```
+ClusterName=<NAME_OF_CLUSTER>
+ControlMachine=<HEAD_NODE_HOSTNAME>
+SlurmUser=slurm
+SlurmctldPort=6817
+SlurmdPort=6818
+AuthType=auth/munge
+StateSaveLocation=/var/spool/slurmctld
+SlurmdSpoolDir=/var/spool/slurmd
+SwitchType=switch/none
+MpiDefault=none
+TaskPlugin=task/none
+ProctrackType=proctrack/pgid
+
+# Specify all the nodes you plan on using that is connected to tailscale here with the following configurations.
+# Copy this line for each node you have.
+NodeName=<NODE_HOSTNAME> NodeHostName=<NODE_HOSTNAME> NodeAddr=<NODE_TAILSCALE_IP> Sockets=<NUM_SOCKETS> CoresPerSocket=<CORES_PER_SOCKET> ThreadsPerCore=<THREADS_PER_CORE> RealMemory=<MEM_SIZE> Gres=gpu:<NUM_GPUS> Feature=gpu State=UNKNOWN
+...
+
+PartitionName=main Nodes=ALL Default=YES MaxTime=INFINITE State=Up
+```
+
+The `PartionName` specifies the "group" that these nodes are a part of. It will help you separate specific work-loads for each of the nodes. So if you wanted some nodes to be part of one group or another you would identify them here. I'm just using the value `Nodes=ALL` since I care less about this. Otherwise you could do `Nodes=node[0-1]` if you have them numbered appropriately or specify the exact names like: `Nodes=node01,node02,node03`.
+
+Now that we have our Slurm configured for our head node we can create the required directories and launch the daemon.
+```
+sudo mkdir -p /var/spool/slurmctld
+sudo chown slurm: /var/spool/slurmctld
+sudo systemctl enable --now slurmctld
+```
+
+**(OPTIONAL) Since this head node is also a compute node for myself I would also start `slurmd`**
+```
+sudo mkdir -p /var/spool/slurmd
+sudo chown slurm: /var/spool/slurmd
+sudo systemctl enable --now slurmd
+```
+
+As a sanity check run `scontrol show node` to see a list of nodes in your cluster and make sure everything is there.
+
 
 ## Compute Node Setup
+Most of the configuration done for our compute nodes have already been setup from the previous section. So we'll mainly need to just copy some files over. We'll have to do these steps **FOR EACH** of our compute nodes.
 
+
+To enable and launch our Slurm compute node we'll have 
+```
+sudo mkdir -p /var/spool/slurmd
+sudo chown slurm: /var/spool/slurmd
+sudo systemctl enable --now slurmd
+```
 
 ### Paperspace
 
@@ -85,7 +167,7 @@ sudo mkdir -p /mnt/shared-slurm
 sudo chown $USER:$USER /mnt/shared-slurm
 ```
 
-Add all your tailscale node IPs to this file: `/etc/exports`. The lines should like this. To display the current device's IP address run `tailscale ip`.
+Add all your tailscale node IPs to this file: `/etc/exports`. The lines should look like this. To display the current device's IP address run `tailscale ip`.
 ```
 /mnt/shared-slurm <TAILSCALE_IP0>/10(rw,sync,no_subtree_check,no_root_squash)
 ...
@@ -113,14 +195,33 @@ sudo mount -a
 ```
 
 
-
-
 ## Using Slurm
 
 ## Profiling
+I'm not going to go too in-depth into this because it starts to depart from the scope of this repository. But a few quick things you can do to check performance...
+
+```
+kernprof
+line_profiler
+nvidia-nsight
+htop
+gpustat
+pdsh
+```
 
 ## Using PyTorch DDP with Slurm
+This is fairly straight forward. Slurm and PyTorch does a lot of the work for setting up some variables such as `WORLD_SIZE`, `LOCAL_RANK`, and `RANK` to martial out the nodes when we use our `torchrun` command so it's fairly seamless.
+
+... Include func calls
 
 ## Training On A Toy Example
 
-## Full Training
+## Training T2T-ViT From Scratch
+We'll be training [Tokens-to-Token ViT: Training Vision Transformers from Scratch on ImageNet](https://github.com/yitu-opensource/T2T-ViT) as an exercise. **Be warned that you will be committing some chunks of change to do this.**
+
+### Download and Pre-Process ImageNet
+Sign-up and download [ImageNet 2012](https://image-net.org/challenges/LSVRC/2012/) from here to the `/mnt/shared-slurm` network drive.
+
+Run the following script to extract the .tar files.
+```
+```
