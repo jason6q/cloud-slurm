@@ -23,8 +23,9 @@ Don't expect this to always be up to date but you might be able to use it as som
 1. [Using Slurm](#using-slurm)
 2. [Profiling](#profiling)
 3. [Using PyTorch DDP with Slurm](#using-pytorch-ddp-with-slurm)
-4. [Training On A Toy Example](#training-on-a-toy-example)
-5. [Training T2T ViT From Scratch](#training-t2t-vit-from-scratch)
+4. [Using MLFlow](#using-mlflow)
+5. [Training On A Toy Example](#training-on-a-toy-example)
+6. [Training T2T ViT From Scratch](#training-t2t-vit-from-scratch)
 
 
 
@@ -36,7 +37,7 @@ Don't expect this to always be up to date but you might be able to use it as som
 5. [MLFlow](https://mlflow.org/) - MLOps platform to track training progress.
 
 ## Tailscale Setup
-Register and subscribe to a [plan](https://tailscale.com/pricing) on Tailscale. Each of our nodes need to communicate with each other through some network and the easiest way to do this is to have them all connected to a single VPN with assigned static IP addresses. (More on this later)
+Register and subscribe to a [plan](https://tailscale.com/pricing) on Tailscale. Each of our nodes need to communicate with each other through some network and the easiest way to do this is to have them all connected to a single VPN with assigned static IP addresses. (More on this later, see setting up shared network storage)
 
 ### Generating an Auth Key
 Once you've done that we'll have to generate an Auth key so that our nodes can connect into the VPN. 
@@ -89,7 +90,6 @@ To capture the amount of Free Memory run `free -m` and grab a rough total of wha
 Grab your tailscale ip address by running `tailscale ip`. If this is your local desktop like mines for my head node you can get away with `localhost`.
 
 Grab your GPUs via `nvidia-smi-L`, if you have multiple ones you'll have to make sure you select a range in the `slurm.conf`.
-
 
 
 To configure slurm we'll have to create a conf file: `sudo touch /etc/slurm/slurm.conf`. Edit the file and copy the following template:
@@ -162,10 +162,19 @@ sudo systemctl enable --now slurmd
 ```
 
 ### Paperspace
+This is easy to use and fairly straight forward. I'd say this is probably the more expensive option out of the three I use however. 
+Just setup your SSH server and SSH into the VM. Then follow the Head and/or Compute Node instructions. You'll have to copy the 
+Tailscale authorization key into it to connect into the VPN of course.
+
+**TODO: Also write about docker deployment**
 
 ### Lambda Labs
 
+**TODO: Also write about docker deployment**
+
 ### Runpods
+
+**TODO: Also write about docker deployment**
 
 ## Network Storage Setup
 I use a shared network drive, but you can also just copy your datasets over to each disk drive per compute node. There's pros and cons to each; if you need read speed and want to use
@@ -173,6 +182,15 @@ I use a shared network drive, but you can also just copy your datasets over to e
 
 ### Setting up NFS
 Install the NFS Server wherever you plan on hosting this drive. For my case, it will be my head node.
+
+### Maintaining Static IP addresses For Tailscale.
+So one obstacle we may encounter is that our nodes aren't guaranteed to have 24/7 up-time. Henceforth, we need to make sure that when these
+nodes re-connect to our Tailscale network they maintain the same IP Address always; otherwise you'd have to keep modifying the `slurm.conf` to
+concur with the new IP Address.
+
+I think there are several ways to go about this; but this is what I do at the moment. **It does require a shared network drive or some form of persistent storage**.
+
+
 
 #### Head Node
 ```
@@ -211,6 +229,16 @@ sudo mount -a
 
 
 ## Using Slurm
+Some useful commands to keep on the back of your hand:
+```
+squeue - 
+sbatch - 
+srun - 
+```
+
+Creating a slurm job:
+```
+```
 
 ## Profiling
 I'm not going to go too in-depth into this because it starts to depart from the scope of this repository. But a few quick things you can do to check performance...
@@ -228,6 +256,8 @@ pdsh
 This is fairly straight forward. Slurm and PyTorch does a lot of the work for setting up some variables such as `WORLD_SIZE`, `LOCAL_RANK`, and `RANK` to martial out the nodes when we use our `torchrun` command so it's fairly seamless.
 
 ... Include func calls
+
+## Using MLFlow
 
 ## Training On A Toy Example
 
