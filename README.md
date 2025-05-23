@@ -35,6 +35,7 @@ Don't expect this to always be up to date but you might be able to use it as som
 3. [Runpod](runpod.io) - Cloud GPU Provider
 4. [Lambda Labs](lambda.ai) - Cloud GPU Provider
 5. [MLFlow](https://mlflow.org/) - MLOps platform to track training progress.
+6. [Docker](https://docs.docker.com/desktop/setup/install/linux/) - Containerization for our code.
 
 ## Tailscale Setup
 Register and subscribe to a [plan](https://tailscale.com/pricing) on Tailscale. Each of our nodes need to communicate with each other through some network and the easiest way to do this is to have them all connected to a single VPN with assigned static IP addresses. (More on this later, see setting up shared network storage)
@@ -65,7 +66,7 @@ sudo apt install -y slurm-wlm munge
 ```
 
 ### Tailscale
-We'll install tailscale directly inside the node.
+We'll install tailscale directly inside the node. Make sure to include the hostname parameter in the tailscale command. This will attach that hostname to the IP address assigned from tailscale and will remain persistent. Our ephemeral nodes (Nodes that restart), will always be assigned the same IP.
 ```
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscaled &
@@ -183,15 +184,6 @@ I use a shared network drive, but you can also just copy your datasets over to e
 ### Setting up NFS
 Install the NFS Server wherever you plan on hosting this drive. For my case, it will be my head node.
 
-### Maintaining Static IP addresses For Tailscale.
-So one obstacle we may encounter is that our nodes aren't guaranteed to have 24/7 up-time. Henceforth, we need to make sure that when these
-nodes re-connect to our Tailscale network they maintain the same IP Address always; otherwise you'd have to keep modifying the `slurm.conf` to
-concur with the new IP Address.
-
-I think there are several ways to go about this; but this is what I do at the moment. **It does require a shared network drive or some form of persistent storage**.
-
-
-
 #### Head Node
 ```
 sudo apt update
@@ -251,13 +243,25 @@ htop
 gpustat
 pdsh
 ```
+## Using MLFlow
+We'll need to setup our tracking server on the head now; at least that's where I would want it. This will centralize all metrics coming from our different compute nodes here.
+
+Make sure to store the artifacts on the shared network drive.
+```
+export MLFLOW_TRACKING_URI=<TAILSCALE_HEAD_NODE_IP>
+--host 0.0.0.0 \
+--port 5000 \
+--backend-store-uri sqlite://mlruns.db \
+--default-artifact-root /mnt/shared-slurm/mlruns
+```
+
+That's pretty much it, just make sure port `5000` is exposed in Tailscale to the rest of your nodes. See example python code on how I track my training jobs.
 
 ## Using PyTorch DDP with Slurm
 This is fairly straight forward. Slurm and PyTorch does a lot of the work for setting up some variables such as `WORLD_SIZE`, `LOCAL_RANK`, and `RANK` to martial out the nodes when we use our `torchrun` command so it's fairly seamless.
 
 ... Include func calls
 
-## Using MLFlow
 
 ## Training On A Toy Example
 
