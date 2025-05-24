@@ -108,6 +108,7 @@ SwitchType=switch/none
 MpiDefault=none
 TaskPlugin=task/none
 ProctrackType=proctrack/pgid
+GresTypes=gpu
 
 # Specify all the nodes you plan on using that is connected to tailscale here with the following configurations.
 # Copy this line for each node you have.
@@ -136,6 +137,7 @@ sudo systemctl enable --now slurmd
 As a sanity check run `scontrol show node` to see a list of nodes in your cluster and make sure everything is there.
 
 
+
 ## Compute Node Setup
 Most of the configuration done for our compute nodes have already been setup from the previous section. So we'll mainly need to just copy some files over. We'll have to do these steps **FOR EACH** of our compute nodes.
 
@@ -153,6 +155,26 @@ Now copy the `slurm.conf` we created from the head node into here.
 ```
 scp <USER>@<HEAD_TAILSCALE_IP>:/etc/slurm/slurm.conf <USER>@<COMPUTE_TAILSCALE_IP>:/etc/slurm/slurm.conf
 ```
+
+You will have to configure `gres` to recognize and manage the GPU devices on each compute node.
+
+Create a file called: `/etc/slurm/gres.conf` and configure it like so:
+```
+Name=gpu Type=default File=/dev/nvidia0
+...
+Name=gpu Type=default File=/dev/nvidiaN
+```
+**NOTE: If for whatever reason you find that your compute node can't detect the gpu; make sure that it has the correct permissions to access /dev/nvidiaX**
+You can check by running the command `ls -l /dev/nvidia*`. If you see something like `root:root` or some other group then slurm may not be a part of them.
+You can add a rule to `udev` to include slurm.
+
+Run the following commands:
+```
+echo -e 'KERNEL=="nvidia[0-9]*", MODE="0666"\nKERNEL=="nvidiactl", MODE="0666"\nKERNEL=="nvidia-uvm", MODE="0666"\nKERNEL=="nvidia-modeset", MODE="0666"' | sudo tee /etc/udev/rules.d/99-slurm-nvidia.rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
 
 To enable and launch our Slurm compute node we'll have to do the following again:
 ```
@@ -219,13 +241,14 @@ To set up auto-mount on reboot modify the `/etc/fstab` per node and add the foll
 sudo mount -a
 ```
 
-
 ## Using Slurm
 Some useful commands to keep on the back of your hand:
 ```
 squeue - 
 sbatch - 
 srun - 
+scancel <job_id> - Cancel a job in the queue.
+scontrol update NodeName=<NODENAME> State=RESUME - If you want to change the state of a node for whatever reason.
 ```
 
 Creating a slurm job:
@@ -257,6 +280,30 @@ export MLFLOW_TRACKING_URI=<TAILSCALE_HEAD_NODE_IP>
 
 That's pretty much it, just make sure port `5000` is exposed in Tailscale to the rest of your nodes. See example python code on how I track my training jobs.
 
+If you want to have this automatically start up you can create a systemd service called: `/etc/systemd/system/mlflow.service`
+```
+[Unit]
+Description=Slurm MLFlow 
+After=network.target
+
+[Service]
+User=<USER_ID>
+ExecStart=<PATH_TO_START_MLFLOW_SH>
+WorkingDirectory=/mnt/shared-slurm
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then just enable and start it. Sanity check it via `journalctl -u mlflow -f`.
+```
+sudo systemctl daemon-reload
+sudo systemctl enable mlflow
+sudo systemctl start mlflow
+```
+
 ## Using PyTorch DDP with Slurm
 This is fairly straight forward. Slurm and PyTorch does a lot of the work for setting up some variables such as `WORLD_SIZE`, `LOCAL_RANK`, and `RANK` to martial out the nodes when we use our `torchrun` command so it's fairly seamless.
 
@@ -264,6 +311,15 @@ This is fairly straight forward. Slurm and PyTorch does a lot of the work for se
 
 
 ## Training On A Toy Example
+Navigate to the `train-toy` directory.
+
+Create a conda environment:
+```
+conda create -n slurm-toy
+conda activate slurm-toy
+
+```
+
 
 ## Training T2T-ViT From Scratch
 We'll be training [Tokens-to-Token ViT: Training Vision Transformers from Scratch on ImageNet](https://github.com/yitu-opensource/T2T-ViT) as an exercise. **Be warned that you will be committing some chunks of change to do this.**
