@@ -5,6 +5,8 @@ Don't expect this to always be up to date but you might be able to use it as som
 
 **TODO:** Docker Setup Variant
 
+![arch](arch.png)
+
 ## Table of Contents
 ### Setup
 1. [Prerequisites](#main-prerequisites)
@@ -90,10 +92,10 @@ To capture the amount of Free Memory run `free -m` and grab a rough total of wha
 
 Grab your tailscale ip address by running `tailscale ip`. If this is your local desktop like mines for my head node you can get away with `localhost`.
 
-Grab your GPUs via `nvidia-smi-L`, if you have multiple ones you'll have to make sure you select a range in the `slurm.conf`.
+Grab your GPUs via `nvidia-smi -L`, if you have multiple ones you'll have to make sure you select a range in the `slurm.conf`.
 
 
-To configure slurm we'll have to create a conf file: `sudo touch /etc/slurm/slurm.conf`. Edit the file and copy the following template:
+To configure Slurm we'll have to create a conf file: `sudo touch /etc/slurm/slurm.conf`. Edit the file and copy the following template:
 
 ```
 ClusterName=<NAME_OF_CLUSTER>
