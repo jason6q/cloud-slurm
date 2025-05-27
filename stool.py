@@ -44,7 +44,7 @@ def launch_job(args: StoolArgs) -> None:
     assert args.output_log != "", "No output log specified."
     assert args.conda_env != "", "No conda environment to activate."
 
-    SBATCH_CMD.format(
+    sbatch = SBATCH_CMD.format(
         job_name=args.job_name,
         nodes=args.nodes,
         ntasks_per_node=args.ntasks,
@@ -62,8 +62,9 @@ def launch_job(args: StoolArgs) -> None:
     Path(args.job_dir).mkdir(exist_ok=True,parents=True)
     slurm_file = Path(args.job_dir) / (args.job_name + '.slurm')
     with open(slurm_file, "w") as fi:
-        fi.write(SBATCH_CMD)
+        fi.write(sbatch)
 
+    print(sbatch)
     os.system(f"{args.launcher} {str(slurm_file)}")
     print("Launched job")
 
