@@ -1,5 +1,5 @@
 """
-    Launch Slurm jobs pythonically.
+    Launch Slurm jobs pythonically. This will build out a command for you.
 """
 import os
 from dataclasses import dataclass
@@ -10,6 +10,8 @@ from omegaconf import OmegaConf
 
 @dataclass
 class StoolArgs:
+    config: str = ""
+    file: str = ""
     mlflow_uri: str = "localhost:5000"
     job_name: str = "toy"
     nodes: int = 1
@@ -17,12 +19,13 @@ class StoolArgs:
     ncpu: int = 16
     ntasks: int = 1
     mem: str = "63000"
-    time: str = ""
+    time: str = "01:00:00"
     partition: str = "main"
     launcher: str = "sbatch"
     output_log: str = ""
     conda_env: str = ""
     job_dir: str = "./slurm-jobs/"
+    kernprof: bool = True
 
 SBATCH_CMD = """#!/bin/bash
 #SBATCH --job-name={job_name}
@@ -39,12 +42,17 @@ conda activate {conda_env}
 """
 
 def launch_job(args: StoolArgs) -> None:
+    """
+        Build the launcher command and execute it.
+    """
     # Just check here
-    assert args.time != "", "No time specified for job."
+    assert args.file != "", "Specify the file you want to execute."
+    assert args.config != "", "Specify a config that contains all model specific parameters."
     assert args.output_log != "", "No output log specified."
     assert args.conda_env != "", "No conda environment to activate."
 
     sbatch = SBATCH_CMD.format(
+        file=args.file,
         job_name=args.job_name,
         nodes=args.nodes,
         ntasks_per_node=args.ntasks,
@@ -57,13 +65,21 @@ def launch_job(args: StoolArgs) -> None:
         conda_env=args.conda_env,
         output_log=args.output_log,
     )
+
+    # Check if we are using kernel profiling
+    # Need to make sure you are adding @profile decorators if you plan
+    # on using it.
+    if args.kernprof:
+        sbatch = f"{sbatch}\n kernprof -o {args.output_log}.lprof -l {args.file}"
+
     # Store StoolArgs config somewhere to keep track of the experiment and
     # Slurm job script.
-    Path(args.job_dir).mkdir(exist_ok=True,parents=True)
+    Path(args.job_dir).mkdir(exist_ok=True, parents=True)
     slurm_file = Path(args.job_dir) / (args.job_name + '.slurm')
     with open(slurm_file, "w") as fi:
         fi.write(sbatch)
 
+    # Launch
     print(sbatch)
     os.system(f"{args.launcher} {str(slurm_file)}")
     print("Launched job")
