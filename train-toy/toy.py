@@ -50,7 +50,6 @@ def main() -> None:
     # Constants, TODO - Move this to a yaml experiment file.
     CIFAR10_PATH = '/mnt/shared-slurm/datasets/CIFAR10'
     BATCH_SIZE = 32
-    NUM_WORKERS = 2 # Based off the Slurm node and what was given for CPUs
     DEVICE = torch.device("cuda") # Assume cuda.
     EPOCHS = 10
 
@@ -59,9 +58,10 @@ def main() -> None:
     WORLD_SIZE = int(os.environ['WORLD_SIZE'])
     GPUS_PER_NODE = int(os.environ['SLURM_GPUS_ON_NODE'])
     LOCAL_RANK = RANK - GPUS_PER_NODE * (RANK // GPUS_PER_NODE)
-    print(f"RANK = {RANK}\nWORLD_SIZE = {WORLD_SIZE}\nGPUS_PER_NODE = {GPUS_PER_NODE}\nLOCAL_RANK = {LOCAL_RANK}")
+    CPUS_PER_TASK = int(os.environ["SLURM_CPUS_PER_TASK"])
+    print(f"RANK = {RANK}\nWORLD_SIZE = {WORLD_SIZE}\nGPUS_PER_NODE = {GPUS_PER_NODE}\nLOCAL_RANK = {LOCAL_RANK}\nCPUS_PER_TASK={CPUS_PER_TASK}")
 
-    ## DP Init
+    ## DDP Init
     setup(RANK, WORLD_SIZE)
 
     # MLFlow Setup
@@ -77,7 +77,7 @@ def main() -> None:
         ]
     )
     train_args = {
-        "num_workers": NUM_WORKERS,
+        "num_workers": CPUS_PER_TASK,
         "pin_memory": True
     }
     test_args = train_args
@@ -140,6 +140,7 @@ def main() -> None:
             mlflow.log_metric('test_pred', correct / len(test))
     print('Finished Training!')
 
+    ## DDP Destroy
     dist.destroy_process_group()
 
 
