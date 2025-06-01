@@ -117,7 +117,7 @@ def main() -> None:
                 total_it += 1
                 if i % 100 == 0:
                     print(f"{e+1} - [{i}/{len(trainloader)}] - {running_loss / total_it}")
-                    mlflow.log_metric('training_loss', running_loss / total_it )
+                    mlflow.log_metric('training_loss', running_loss / total_it, step=total_it)
 
                 loss.backward()
                 optimizer.step()
@@ -136,8 +136,8 @@ def main() -> None:
                     correct += (pred == y).sum().item()
             print(f"Test Accuracy: {correct}/{len(test)}")
 
-            mlflow.log_metric('test_loss', test_loss / len(test))
-            mlflow.log_metric('test_pred', correct / len(test))
+            mlflow.log_metric('test_loss', test_loss / len(test), step=e)
+            mlflow.log_metric('test_pred', correct / len(test), step=e)
     print('Finished Training!')
 
     ## DDP Destroy
