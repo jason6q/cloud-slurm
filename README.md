@@ -38,9 +38,10 @@ Don't expect this to always be up to date but you might be able to use it as som
 4. [Lambda Labs](lambda.ai) - Cloud GPU Provider
 5. [MLFlow](https://mlflow.org/) - MLOps platform to track training progress.
 6. [Docker](https://docs.docker.com/desktop/setup/install/linux/) - Containerization for our code.
+7. [NCCL Operations](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/operations.html) - Useful to know when dealing with DDP and FSDP
 
 ## Tailscale Setup
-Register and subscribe to a [plan](https://tailscale.com/pricing) on Tailscale. Each of our nodes need to communicate with each other through some network and the easiest way to do this is to have them all connected to a single VPN with assigned static IP addresses. (More on this later, see setting up shared network storage)
+Register and subscribe to a [plan](https://tailscale.com/pricing) on Tailscale. Each of our nodes need to communicate with each other through some network and the easiest way to do this is to have them all connected to a single VPN with assigned static IP addresses. (More on this later)
 
 ### Generating an Auth Key
 Once you've done that we'll have to generate an Auth key so that our nodes can connect into the VPN. 
@@ -81,7 +82,7 @@ We'll setup munge on here too and generate our key to be copied over later to ou
 ```
 sudo create-munge-key
 sudo chown munge:munge /etc/munge/munge.key
-sudo chmod 400 /etc/munge/munge.key
+su chmod 400 /etc/munge/munge.key
 sudo systemctl enable --now munge
 ```
 
@@ -92,7 +93,7 @@ To capture the amount of Free Memory run `free -m` and grab a rough total of wha
 
 Grab your tailscale ip address by running `tailscale ip`. If this is your local desktop like mines for my head node you can get away with `localhost`.
 
-Grab your GPUs via `nvidia-smi -L`, if you have multiple ones you'll have to make sure you select a range in the `slurm.conf`.
+Grab your GPUs via `nvidia-smi -L`, if you have multiple ones you have to specify the number of GPUs `slurm.conf`.
 
 
 To configure Slurm we'll have to create a conf file: `sudo touch /etc/slurm/slurm.conf`. Edit the file and copy the following template:
@@ -137,7 +138,6 @@ sudo systemctl enable --now slurmd
 ```
 
 As a sanity check run `scontrol show node` to see a list of nodes in your cluster and make sure everything is there.
-
 
 
 ## Compute Node Setup
@@ -246,11 +246,13 @@ sudo mount -a
 ## Using Slurm
 Some useful commands to keep on the back of your hand:
 ```
-squeue - 
-sbatch - 
-srun - 
-scancel <job_id> - Cancel a job in the queue.
-scontrol update NodeName=<NODENAME> State=RESUME - If you want to change the state of a node for whatever reason.
+scontrol show nodes
+sinfo -N
+squeue 
+sbatch 
+srun
+scancel <job_id> # Cancel a job in the queue.
+scontrol update NodeName=<NODENAME> State=RESUME # If you want to change the state of a node for whatever reason.
 ```
 
 Creating a slurm job:
@@ -306,10 +308,15 @@ sudo systemctl enable mlflow
 sudo systemctl start mlflow
 ```
 
-## Using PyTorch DDP with Slurm
-This is fairly straight forward. Slurm and PyTorch does a lot of the work for setting up some variables such as `WORLD_SIZE`, `LOCAL_RANK`, and `RANK` to martial out the nodes when we use our `torchrun` command so it's fairly seamless.
+## Using PyTorch DDP & FSDP with Slurm
+This is fairly straight forward. Slurm and PyTorch does a lot of the work for setting up some variables such as `WORLD_SIZE`, `LOCAL_RANK`, and `RANK` to martial out the nodes and gpus when we use our `torchrun` command so it's fairly seamless.
+
+### DDP (Distributed Data Parallel)
+Conceptually simple, DDP essentially copies the model weights and optimizer states across all your ranks (gpus) and runs forward/backward pass on each of the ranks separately using a **different batch of data** per rank. Once all calculations are finished on each rank, an `all-reduce` operation is performed to gather up the gradients and update all the models in each of the ranks; then repeat. This ultimately increases the bandwidth of how much data you can process but is memory inefficient.
 
 ... Include func calls
+
+### FSDP (Fully Sharded Data Parallel)
 
 
 ## Training On A Toy Example
@@ -323,12 +330,12 @@ conda activate slurm-toy
 ```
 
 
-## Training T2T-ViT From Scratch
-We'll be training [Tokens-to-Token ViT: Training Vision Transformers from Scratch on ImageNet](https://github.com/yitu-opensource/T2T-ViT) as an exercise. **Be warned that you will be committing some chunks of change to do this.**
+## Training AIMv2 From Scratch
+We'll be training AIMv2 from scratch. However, we will omit using the proprietary dataset in the paper since we won't have access to them. So just download the public datasets the paper mentions. We probably won't get the same results, but here I'm trying to demonstrate how to run the SLURM cluster.
 
-### Download and Pre-Process ImageNet
-Sign-up and download [ImageNet 2012](https://image-net.org/challenges/LSVRC/2012/) from here to the `/mnt/shared-slurm` network drive.
 
-Run the following script to extract the .tar files.
+Install AIMv2
 ```
+pip install 'git+https://github.com/apple/ml-aim.git#subdirectory=aim-v1'
+pip install 'git+https://github.com/apple/ml-aim.git#subdirectory=aim-v2'
 ```
