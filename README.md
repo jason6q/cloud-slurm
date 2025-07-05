@@ -27,9 +27,6 @@ Don't expect this to always be up to date but you might be able to use it as som
 3. [Using PyTorch DDP with Slurm](#using-pytorch-ddp-with-slurm)
 4. [Using MLFlow](#using-mlflow)
 5. [Training On A Toy Example](#training-on-a-toy-example)
-6. [Training AIMv2 From Scratch](#training-aimv2-from-scratch)
-
-
 
 ## Main Prerequisites
 1. [Tailscale](tailscale.com) -  Private VPN for your head and compute nodes to be within.
@@ -244,15 +241,20 @@ sudo mount -a
 ```
 
 ## Using Slurm
-Some useful commands to keep on the back of your hand:
+Some useful commands to keep on the back of your hand to use and debug the cluster.
+
+### Slurm Commands
 ```
 scontrol show nodes
-sinfo -N
 squeue 
 sbatch 
 srun
 scancel <job_id> # Cancel a job in the queue.
-scontrol update NodeName=<NODENAME> State=RESUME # If you want to change the state of a node for whatever reason.
+sinfo -Nl # See the status of your nodes.
+scontrol update NodeName=<NODENAME> State=RESUME # If you want to resume a node when its in the down state.
+
+sudo journalctl -u slurmd # Check daemon logs.
+sudo less /var/log/slurmd.log
 ```
 
 Creating a slurm job:
@@ -270,6 +272,7 @@ htop
 gpustat
 pdsh
 ```
+
 ## Using MLFlow
 We'll need to setup our tracking server on the head now; at least that's where I would want it. This will centralize all metrics coming from our different compute nodes here.
 
@@ -327,37 +330,4 @@ Create a conda environment:
 conda create -n slurm-toy
 conda activate slurm-toy
 
-```
-
-
-## Training AIMv2 From Scratch
-We'll be training AIMv2 from scratch. However, we will omit using the proprietary dataset in the paper since we won't have access to them. So just download the public datasets the paper mentions [DFN-2B](https://huggingface.co/datasets/apf1/datafilteringnetworks_2b) and [COYO](https://github.com/kakaobrain/coyo-dataset). We probably won't get the same results, but here I'm trying to demonstrate how to run the SLURM cluster.
-
-
-Install AIMv2
-```
-pip install 'git+https://github.com/apple/ml-aim.git#subdirectory=aim-v1'
-pip install 'git+https://github.com/apple/ml-aim.git#subdirectory=aim-v2'
-```
-
-Download datasets to `/mnt/shared-slurm/datasets` or wherever it is that you've decided to store datasets for all your nodes to access.
-
-We'll only be using DFN-2B and COYO. You can manually follow the instructions to download them here:
-```
-https://huggingface.co/datasets/apf1/datafilteringnetworks_2b
-https://github.com/kakaobrain/coyo-dataset/tree/main/download
-```
-
-Or you can use `img2dataset` to conveniently download them. We will convert these files to `webdataset` format.
-```
-cd /mnt/shared-slurm/datasets
-mkdir coyo-700m && cd coyo-700m
-for i in {00000..00127}; do wget https://huggingface.co/datasets/kakaobrain/coyo-700m/resolve/main/data/part-$i-17da4908-939c-46e5-91d0-15f256041956-c000.snappy.parquet; done
-cd ..
-
-img2dataset --url_list coyo-700m --input_format "parquet"\
-         --url_col "url" --caption_col "text" --output_format webdataset\
-           --output_folder coyo-700m-webdataset --processes_count 16 --thread_count 64 --image_size 384\
-            --resize_only_if_bigger=True --resize_mode="keep_ratio" --skip_reencode=True \
-             --save_additional_columns '["clip_similarity_vitb32","clip_similarity_vitl14","nsfw_score_opennsfw2","nsfw_score_gantman","watermark_score","aesthetic_score_laion_v2"]' --enable_wandb False
 ```
