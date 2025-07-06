@@ -3,8 +3,6 @@ My personal Slurm cluster to orchestrate compute nodes across different GPU prov
 
 Don't expect this to always be up to date but you might be able to use it as some sort of template for your own. You don't have to use the same GPU providers; so long as you can SSH into a VM instance and/or deploy a Docker container into them.
 
-**TODO:** Docker Setup Variant
-
 ![arch](arch.png)
 
 ## Table of Contents
@@ -16,10 +14,9 @@ Don't expect this to always be up to date but you might be able to use it as som
    - [Munge](#munge)
    - [Slurm](#slurm)
 4. [Compute Node Setup](#compute-node-setup)
-   - [Paperspace](#paperspace)
-   - [Lambda Labs](#lambda-labs)
-   - [Runpods](#runpods)
+   - [Deploy to GPU Providers](#deploy-to-gpu-providers)
 5. [Network Storage Setup](#network-storage-setup)
+   - [Configurations](#configurations)
 
 ### Usage & Training
 1. [Using Slurm](#using-slurm)
@@ -27,6 +24,9 @@ Don't expect this to always be up to date but you might be able to use it as som
 3. [Using PyTorch DDP with Slurm](#using-pytorch-ddp-with-slurm)
 4. [Using MLFlow](#using-mlflow)
 5. [Training On A Toy Example](#training-on-a-toy-example)
+
+### Hardware
+1. [Host Bus Adapters and SSDs](#host-bus-adapters-and-ssds)
 
 ## Main Prerequisites
 1. [Tailscale](tailscale.com) -  Private VPN for your head and compute nodes to be within.
@@ -37,8 +37,6 @@ Don't expect this to always be up to date but you might be able to use it as som
 6. [Docker](https://docs.docker.com/desktop/setup/install/linux/) - Containerization for our code.
 7. [NCCL Operations](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/operations.html) - Useful to know when dealing with DDP and FSDP
 
-## Hardware
-1. [Host Bus Adapters and SSDs](#host-bus-adapters-and-ssds)
 
 ## Tailscale Setup
 Register and subscribe to a [plan](https://tailscale.com/pricing) on Tailscale. Each of our nodes need to communicate with each other through some network and the easiest way to do this is to have them all connected to a single VPN with assigned static IP addresses. (More on this later)
@@ -177,7 +175,6 @@ sudo udevadm control --reload-rules
 sudo udevadm trigger
 ```
 
-
 To enable and launch our Slurm compute node we'll have to do the following again:
 ```
 sudo apt install slurmd
@@ -186,20 +183,9 @@ sudo chown slurm: /var/spool/slurmd
 sudo systemctl enable --now slurmd
 ```
 
-### Paperspace
-This is easy to use and fairly straight forward. I'd say this is probably the more expensive option out of the three I use however. 
-Just setup your SSH server and SSH into the VM. Then follow the Head and/or Compute Node instructions. You'll have to copy the 
-Tailscale authorization key into it to connect into the VPN of course.
+### Deploy To GPU Providers
 
-**TODO: Also write about docker deployment**
-
-### Lambda Labs
-
-**TODO: Also write about docker deployment**
-
-### Runpods
-
-**TODO: Also write about docker deployment**
+Use the `install-compute.sh` to set up the compute nodes. It follows the steps listed out above in the Compute section. I use the following providers: `Paperspace`, `Lambda Labs`, and `Runpod`.
 
 ## Network Storage Setup
 I use a shared network drive, but you can also just copy your datasets over to each disk drive per compute node. There's pros and cons to each; if you need read speed and want to use
@@ -228,6 +214,37 @@ Then refresh and restart your `nfs-kernel-server`. If you don't have systemctl i
 sudo exportfs -ra
 sudo systemctl restart nfs-kernel-server
 ```
+
+### Configurations
+We'll also have to ensure that our `slurmctld` and `slurmd` services start after this is mounted. **Our NFS server will centralize all configurations across head/compute nodes to keep a single source of truth.**
+
+```
+sudo systemctl edit slurmctld
+sudo systemctl edit slurmd
+```
+
+Add the line for both:
+```
+[Unit]
+RequiresMountsFor=/mnt/shared-slurm
+```
+
+**NOTE: We'll have to do this for each Slurm compute node on `slurmd`**
+
+#### Directory Structure
+The following is the directory structured I've layed out in my `/mnt/shared-slurm` folder to centralize all configurations on datasets.
+
+```
+/mnt/shared-slurm/
+- configs/
+   - munge.key
+   - slurm.conf
+- datasets/
+- mlruns/
+- mlruns.db
+```
+
+Notice that we've moved the `munge.key` and `slurm.conf` files to the `/mnt/shared-slurm/configs/` folder. We're going to create symlink/copy each of these files in order to configure the services on all nodes. This is why its vital to maintain a mount order for the services.
 
 #### Compute Node
 ```
