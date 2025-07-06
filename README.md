@@ -37,6 +37,9 @@ Don't expect this to always be up to date but you might be able to use it as som
 6. [Docker](https://docs.docker.com/desktop/setup/install/linux/) - Containerization for our code.
 7. [NCCL Operations](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/operations.html) - Useful to know when dealing with DDP and FSDP
 
+## Hardware
+1. [Host Bus Adapters and SSDs](#host-bus-adapters-and-ssds)
+
 ## Tailscale Setup
 Register and subscribe to a [plan](https://tailscale.com/pricing) on Tailscale. Each of our nodes need to communicate with each other through some network and the easiest way to do this is to have them all connected to a single VPN with assigned static IP addresses. (More on this later)
 
@@ -331,3 +334,20 @@ conda create -n slurm-toy
 conda activate slurm-toy
 
 ```
+
+# Hardware
+These are just random notes about how I have my workstation set up. Entirely unique to what types of equipment I have laying around.
+
+## Host Bus Adapters and SSDs
+I have 16+ 2.5 SSDs laying around and I want to make use of them to store a bunch of ML datasets. One thing I was trying to minimize here was Read/Write throughput which is why I opted to directly connect these SSDs to my workstation via SATA. I could have done a NAS setup but I think this setup is faster. This will be connected to my head node.
+
+| Equipment | Amount |
+|-----------------|-----------------|
+| [LSI Broadcom SAS 9300-8i 8-port 12 GB/s SATA+SAS PCI-Express 3.0 Host Bus Adapters](https://www.amazon.com/dp/B00DSURZYS) | 2 |
+| [Internal Mini SAS HD to SATA Cable 3.3 Feet, 1m (SFF-8643 to SATA Forward Breakout)](https://www.amazon.com/dp/B01BW1U2L2?ref=ppx_yo2ov_dt_b_fed_asin_title)| 4 |
+| [PRIME Z790-P WIFI](https://www.amazon.com/ASUS-Z790-P-Motherboard-Bluetooth-ThunderboltTM/dp/B0BG6LGNDB?th=1) | 1 |
+
+
+So the Host Bus Adapter will allow us to connect more SSDs than what is available with the pre-existing motherboard. Each of them have 2 Mini-SAS outputs that we can breakout into 4 SATA inputs each. Henceforth, each Host Bus Adapter supports 8 SSDs, with 2 of them we get a total of 16 SSDs to wire together.
+
+With my current motherboard I can only support 2 HBAs.
