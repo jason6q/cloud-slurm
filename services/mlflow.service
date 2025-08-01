@@ -1,0 +1,14 @@
+[Unit]
+Description=Slurm MLFlow 
+After=network.target
+
+[Service]
+User=<USER_ID>
+Environment="PATH=/home/jq/Packages/miniconda3/envs/mlflow-server/bin:/usr/bin:/bin"
+ExecStart=<PATH_TO_START_MLFLOW_SH>
+WorkingDirectory=/mnt/shared-slurm
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
