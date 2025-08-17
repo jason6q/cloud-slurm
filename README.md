@@ -3,6 +3,10 @@ My personal Slurm cluster to orchestrate compute nodes across different GPU prov
 
 Don't expect this to always be up to date but you might be able to use it as some sort of template for your own. You don't have to use the same GPU providers; so long as you can SSH into a VM instance and/or deploy a Docker container into them.
 
+## TODO
+1. Add Ray Tune
+2. Add Optuna
+
 ![arch](arch.png)
 
 ## Table of Contents
@@ -17,6 +21,7 @@ Don't expect this to always be up to date but you might be able to use it as som
    - [Deploy to GPU Providers](#deploy-to-gpu-providers)
 5. [Network Storage Setup](#network-storage-setup)
    - [Configurations](#configurations)
+6. [Discord Notification Bot](#discord)
 
 ### Usage & Training
 1. [Using Slurm](#using-slurm)
@@ -259,6 +264,13 @@ To set up auto-mount on reboot modify the `/etc/fstab` per node and add the foll
 <TAILSCALE_SHARED_DRIVE_IP>:/mnt/shared-slurm /mnt/shared-slurm nfs defaults 0 0
 sudo mount -a
 ```
+
+## Discord
+1. We'll need to navigate to the [Discord Developer Page](https://discord.com/developers/applications) and create a bot token.
+2. Navigate: `Settings > Bot` and generate a token. Copy that token somewhere safe.
+3. Navigate: `Oath2 > URL Generator` and select `bot` and give it permissions to `Send Messages`.
+4. Copy the generated URL and paste it into your browser so that you can invite your bot to your discord channel.
+
 
 ## Using Slurm
 Some useful commands to keep on the back of your hand to use and debug the cluster.
